@@ -34,6 +34,8 @@ Code for Raspberry Pi Zero W 2 that runs the following sensor:
   REPO/CODE:        https://github.com/AndresMercad0/RPi-MultichannelGasV2-PythonLib
 
 
+
+
   #################################################################################
   #                    CONNECTING DEVICES/SENSORS TO THE BOARD                    #
   #################################################################################
@@ -56,12 +58,35 @@ Code for Raspberry Pi Zero W 2 that runs the following sensor:
         3 SDA -------------------------- SDA - Pin 3
         4 SCL -------------------------- SCL - Pin 5
 
+
+  #################################################################################
+  #                               CALIBRATE SENSOR                                #
+  #################################################################################
+  by Veselin Hadzhiyski 2021 (vcoder@abv.bg)
+
+  There are two important parameters:
+   * R0 - Sensor resistance on ambient air. It is a constant value written in the sketch. Obtained through calibration.
+   * RS_gas - sensor resistance on gas with some concentration. This value changes when the concentration changes.
+   .--------------------------------------------------------------------------------------.
+   | NOTE: During calibration, for better accuracy and results, use well ventilated room. |
+   '--------------------------------------------------------------------------------------'
+   * The Rs/R0 ratio correspond to the gas concentration. And for that are the calibration curves. The calibration curves are given in the wiki.
+
+   How to calibrate?
+   |
+   '->  Run the sketch, wait the sensor to heat up (if it is first run of the sensor, you must preheat it for more than 72 hours.
+        If it is already preheated, run it for few hours, to reach stable parameters), and read the R_gas value.
+        Then, write the value to the R0 value in the sketch. Because the calibration curves are not linear, I use logarithmic function to receive the correct data in PPM in different points.
+        Of course, there is some error in the different points, but it's enough accurate.
+        And that's it! The sensor is ready for operation.
+
 '''
 
-''' 
+'''
  * LIBRARIES *
 '''
 # General Purpose
+import math
 import time
 import board # I2C
 import busio # I2C
@@ -92,6 +117,82 @@ def main():
         print(f"VOC: {val}  =  {sensor.calc_vol(val)}V")
         val = sensor.measure_co()
         print(f"CO: {val}  =  {sensor.calc_vol(val)}V")
+
+        
+        '''
+        -------------------------  PPM CO  -------------------------
+        CO range: 0 - 1000 PPM
+        Calibrated according calibration curve by Winsen: 0 - 150 PPM
+        Calibration by Veselin Hadzhiyski 2021 (vcoder@abv.bg)
+
+        RS/R0       PPM
+        1           0
+        0.77        1
+        0.6         3
+        0.53        5
+        0.4         10
+        0.29        20
+        0.21        50
+        0.17        100
+        0.15        150
+        '''
+        print("----- PPM CO -----")
+        sensorValue = sensor.measure_co()
+        sensor_volt = sensor.calc_vol(sensorValue)
+        print(f"CO: {sensorValue}  eq  {sensor_volt}V")
+
+        RS_gas = (3.3-sensor_volt)/sensor_volt
+        print(f"RS_gas: {RS_gas}")
+
+        R0 = 31 # This value is obtained from the ambient air and must be determined through sensor calibration, as referenced in the code's initial comments.
+        print(f"R0: {R0}")
+
+        ratio =  RS_gas/R0
+        print(f"ratio: {ratio}")
+        
+        lgPPM = (math.log10(ratio) * -3.82) - 0.66  # - 3.82) - 0.66; - default      - 2.82) - 0.12; - best for range up to 150 ppm
+        PPM = pow(10,lgPPM)
+        print(f"PPM: {PPM}")
+
+
+
+        '''
+        -------------------------  PPM NO2  -------------------------
+        NO2 range: 0 - 10 PPM
+        Calibrated according calibration curve by Winsen: 0 - 10 PPM
+        Calibration by Veselin Hadzhiyski 2021 (vcoder@abv.bg)
+
+        RS/R0       PPM
+        1           0
+        1.4         1
+        1.8         2
+        2.25        3
+        2.7         4
+        3.1         5
+        3.4         6
+        3.8         7
+        4.2         8
+        4.4         9
+        4.7         10
+        '''
+        print("----- PPM NO2 -----")
+        sensorValue = sensor.measure_no2()
+        sensor_volt = sensor.calc_vol(sensorValue)
+        print(f"NO2: {sensorValue}  eq  {sensor_volt}V")
+
+        RS_gas = (3.3-sensor_volt)/sensor_volt
+        print(f"RS_gas: {RS_gas}")
+
+        R0 = 40 # This value is obtained from the ambient air and must be determined through sensor calibration, as referenced in the code's initial comments.
+        print(f"R0: {R0}")
+
+        ratio =  RS_gas/R0
+        print(f"ratio: {ratio}")
+
+        lgPPM = (math.log10(ratio) * + 1.9) - 0.2  # + 2   -0.3
+        PPM = pow(10,lgPPM)
+        print(f"PPM: {PPM}")
+
 
 
         # Wait before the next measurement
